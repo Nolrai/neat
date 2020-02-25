@@ -1,0 +1,117 @@
+cabal-version:       2.0
+name:                neat
+version:             0.0.0.0
+synopsis:            See README for more info
+description:         See README for more info
+homepage:            https://github.com/Nolrai/neat
+bug-reports:         https://github.com/Nolrai/neat/issues
+license:             MIT
+license-file:        LICENSE
+author:              Chris A. Upshaw
+maintainer:          chrisaupshaw.work@gmail.com
+copyright:           2020 Chris A. Upshaw
+category:            Machine Learning
+build-type:          Simple
+extra-doc-files:     README.md
+                   , CHANGELOG.md
+tested-with:         GHC == 8.8.1
+
+source-repository head
+  type:                git
+  location:            https://github.com/Nolrai/neat.git
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Neat
+                       Prelude
+
+  build-depends:       base-noprelude ^>= 4.13.0.0
+                     , relude
+
+  ghc-options:         -Wall
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -fhide-source-paths
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+                       -Wmissing-deriving-strategies
+
+  default-language:    Haskell2010
+
+executable neat
+  hs-source-dirs:      app
+  main-is:             Main.hs
+
+  build-depends:       base-noprelude ^>= 4.13.0.0
+                     , neat
+                     , relude
+
+  ghc-options:         -Wall
+                       -threaded
+                       -rtsopts
+                       -with-rtsopts=-N
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -fhide-source-paths
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+                       -Wmissing-deriving-strategies
+
+  default-language:    Haskell2010
+
+test-suite neat-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+
+  build-depends:       base-noprelude ^>= 4.13.0.0
+                     , neat
+                     , relude
+
+  ghc-options:         -Wall
+                       -threaded
+                       -rtsopts
+                       -with-rtsopts=-N
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -fhide-source-paths
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+                       -Wmissing-deriving-strategies
+
+  default-language:    Haskell2010
+
+benchmark neat-benchmark
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      benchmark
+  main-is:             Main.hs
+
+  build-depends:       base-noprelude ^>= 4.13.0.0
+                     , gauge
+                     , neat
+                     , relude
+
+  ghc-options:         -Wall
+                       -threaded
+                       -rtsopts
+                       -with-rtsopts=-N
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -fhide-source-paths
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+                       -Wmissing-deriving-strategies
+
+  default-language:    Haskell2010
