@@ -1,3 +1,6 @@
-resolver: nightly-2019-12-25
+resolver: lts-15.5
 
-extra-deps: [base-noprelude-4.13.0.0]
+extra-deps:
+  - moo-1.2@sha256:0c4be1a01548db785dcbbe6b8c98579dbf03c5b3b536e0420dce3ba6a61337cb,5951
+  - gray-code-0.3.1@sha256:2c8a4ed9c9ee37320305610604d6d93504e0813d7c9768949af418b53043185a,2388
+  - base-noprelude-4.13.0.0@sha256:3cccbfda38e1422ca5cc436d58858ba51ff9114d2ed87915a6569be11e4e5a90,6842

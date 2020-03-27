@@ -27,6 +27,7 @@ library
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude
+                     , moo
 
   ghc-options:         -Wall
                        -Wincomplete-uni-patterns
