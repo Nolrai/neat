@@ -1,0 +1,16 @@
+cradle:
+  multi:
+    - path: "./src"
+      config: {cradle: {stack: {component: "neat"}}}
+    - path: "./test"
+      config:
+        cradle:
+          stack: {component: "neat:neat-test"}
+    - path: "./app"
+      config:
+        cradle:
+          stack: {component: "neat:application:neat"}
+    - path: "./benchmark"
+      config:
+        cradle:
+          stack: {component: "neat:neat-benchmark"}

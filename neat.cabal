@@ -29,6 +29,11 @@ library
                      , relude
                      , moo
                      , grenade
+                     , vector
+                     , hashable
+                     , MonadRandom
+                     , containers
+                     , lens
 
   ghc-options:         -Wall
                        -Wincomplete-uni-patterns
