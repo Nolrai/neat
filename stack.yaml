@@ -1,7 +1,7 @@
 resolver:
-  size: 491372
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/5.yaml
-  sha256: 1b549cfff328040c382a70a84a2087aac8dab6d778bf92f32a93a771a1980dfc
+  size: 488576
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/0.yaml
+  sha256: e4b6a87b47ec1cf63a7f1a0884a3b276fce2b0d174a10e8753c4f618e7983568
 
 extra-deps:
 - hackage: moo-1.2@sha256:0c4be1a01548db785dcbbe6b8c98579dbf03c5b3b536e0420dce3ba6a61337cb,5951
@@ -16,3 +16,14 @@ extra-deps:
   pantry-tree:
     size: 112
     sha256: 90db92c8401880187ce642c5345407bcbd9546ea235524dd445cab2566ee3db1
+- size: 59344
+  url: https://github.com/nolrai/grenade/archive/75f58045719bfa7f8cdb2a6dd85e8a1891d743a5.tar.gz
+  cabal-file:
+    size: 7292
+    sha256: b4ce1cbf6c625c9ad61f1553399c2a518a7d69007d01efa4820a6b79f66a031d
+  name: grenade
+  version: 0.1.0
+  sha256: 8465cd4dde1d76e13a6f236339e555cb7c2ac5a148a46b21a09822691cd06c9b
+  pantry-tree:
+    size: 5455
+    sha256: a1e80a5e4a33fc70e932e3b543018eafd0c50f491b4bc5581b399cc87933625b

@@ -1,6 +1,8 @@
 module Neat
-       ( someFunc
-       ) where
+  ( someFunc,
+  )
+where
 
-someFunc :: IO ()
-someFunc = putStrLn ("someFunc" :: String)
+import Grenade
+
+someFunc = undefined
