@@ -24,6 +24,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Neat
                        Prelude
+  other-modules:       Neat.Interface
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude

@@ -1,9 +1,19 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Neat.Types where
+module Neat.Types
+  ( NodeType (..),
+    Gene (..),
+    Genotype (..),
+    connections,
+    nodes,
+    inNode,
+    outNode,
+    weight,
+    enabled,
+  )
+where
 
 import Control.Lens
-import Data.Vector as V
 
 data NodeType = Sensor | Output | Hidden
 
@@ -17,7 +27,7 @@ data Gene
 
 data Genotype
   = Genotype
-      { _nodes :: Vector NodeType,
+      { _nodes :: IntMap NodeType,
         _connections :: IntMap Gene
       }
 

@@ -1,7 +1,6 @@
 module Main (main) where
 
-import Neat (someFunc)
-
+import Neat (stub)
 
 main :: IO ()
-main = someFunc
+main = stub
