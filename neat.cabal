@@ -26,6 +26,8 @@ library
                        Prelude
   other-modules:       Neat.Interface
                        Neat.Types
+                       Neat.Internals
+                       Extra.Random
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude
@@ -36,6 +38,9 @@ library
                      , MonadRandom
                      , containers
                      , lens
+                     , linear
+                     , random
+                     , array
 
   ghc-options:         -Wall
                        -Wincomplete-uni-patterns

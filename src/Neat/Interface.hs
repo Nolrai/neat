@@ -5,5 +5,7 @@ module Neat.Interface
   )
 where
 
+import Neat.Internals
+
 stub :: a
 stub = error "stub"
