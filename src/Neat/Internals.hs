@@ -1,7 +1,7 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 
 module Neat.Internals
   ( addConnection,
@@ -13,15 +13,26 @@ module Neat.Internals
 where
 
 import Control.Lens as Lens
-import Control.Monad.Random as R
 import Data.Hashable
 import Data.IntMap.Strict as IM
 import Data.List as L
-import Data.Maybe (catMaybes)
-import Extras.Random
+import Data.RVar
+import Data.Random.Distribution
+import Data.Random.Distribution.Normal (normal)
+import Data.Random.Distribution.Uniform (Uniform (..), uniform)
+import Data.Random.Extras
+import Data.Ratio
 import Linear.Metric as LM
 import Linear.V2
 import Neat.Types
+
+instance Distribution Uniform Rational where
+  rvar (Uniform low high) =
+    do
+      let diff = high - low
+      let bottom = denominator diff
+      top <- uniform 0 (numerator diff)
+      pure (low + top % bottom)
 
 mutateWeights :: Monad m => (Double -> m Double) -> Genotype -> m Genotype
 mutateWeights = Lens.mapMOf (connections . each . weight)
@@ -33,37 +44,33 @@ toInnovationHash generation gene =
   hash (generation, gene ^. inNode, gene ^. outNode)
 
 addConnection ::
-  forall g.
-  (RandomGen g) =>
   Int ->
-  Genotype ->
   Double ->
-  Rand g Genotype
-addConnection generation parent newWeight =
+  Genotype ->
+  RVar Genotype
+addConnection generation newWeight parent =
   Genotype (parent ^. nodes) <$> newConnections
   where
-    getRandomNodeInt :: Rand g Int
-    getRandomNodeInt = choice $ IM.keys (parent ^. nodes)
-    newConnections :: Rand g (IntMap Gene)
+    randomNode :: RVar Int
+    randomNode = choice $ IM.keys (parent ^. nodes)
+    newConnections :: RVar (IntMap Gene)
     newConnections =
       do
         new <- newConnection
         pure $ IM.insert (toInnovationHash generation new) new (parent ^. connections)
-    newConnection :: Rand g Gene
+    newConnection :: RVar Gene
     newConnection =
       do
-        newInNode <- getRandomNodeInt
-        newOutNode <- getRandomNodeInt
+        newInNode <- randomNode
+        newOutNode <- randomNode
         pure Gene {_inNode = newInNode, _outNode = newOutNode, _enabled = True, _weight = newWeight}
 
 splitConnection ::
-  forall g.
-  (RandomGen g) =>
   Int ->
-  Genotype ->
   NodeType ->
-  Rand g Genotype
-splitConnection generation parent nodeType =
+  Genotype ->
+  RVar Genotype
+splitConnection generation nodeType parent =
   do
     key <- getRandomConnectionKey
     let oldConnection = (parent ^. connections) IM.! key
@@ -95,10 +102,8 @@ splitConnection generation parent nodeType =
     -- these down here don't rely on the value of "key".
     toHash :: Gene -> Int
     toHash = toInnovationHash generation
-    getRandomConnectionKey :: Rand g Key
-    getRandomConnectionKey = choose $ keys (parent ^. connections)
-    choose :: [a] -> Rand g a
-    choose = R.fromList . L.map (,1)
+    getRandomConnectionKey :: RVar Key
+    getRandomConnectionKey = choice $ keys (parent ^. connections)
 
 data OrBoth l r = LeftOnly l | Both l r | RightOnly r
 
@@ -108,22 +113,18 @@ orBoth _ onBoth _ (Both l r) = onBoth l r
 orBoth _ _ onRight (RightOnly r) = onRight r
 
 crossover ::
-  forall g.
-  (RandomGen g) =>
   Genotype ->
   Genotype ->
-  Rand g Genotype
+  RVar Genotype
 crossover = crossover' (V2 1 1) (V2 1 0) (V2 0 1)
 
 crossover' ::
-  forall g.
-  (RandomGen g) =>
   Odds ->
   Odds ->
   Odds ->
   Genotype ->
   Genotype ->
-  Rand g Genotype
+  RVar Genotype
 crossover' fitterOdds fitterOnlyOdds lessFitOnlyOdds fitter lessFit =
   do
     newNodes <- (mkNewNodes `on` (^. nodes)) fitter lessFit
@@ -132,24 +133,24 @@ crossover' fitterOdds fitterOnlyOdds lessFitOnlyOdds fitter lessFit =
   where
     -- include all nodes that are in at least one parent
     mkNewNodes ::
-      IntMap NodeType -> IntMap NodeType -> Rand g (IntMap NodeType)
+      IntMap NodeType -> IntMap NodeType -> RVar (IntMap NodeType)
     mkNewNodes = crossoverIntMap fitterOdds (V2 1 0) (V2 1 0)
-    mkNewConnections :: IntMap Gene -> IntMap Gene -> Rand g (IntMap Gene)
+    mkNewConnections :: IntMap Gene -> IntMap Gene -> RVar (IntMap Gene)
     mkNewConnections =
       crossoverIntMap fitterOdds fitterOnlyOdds lessFitOnlyOdds
 
 type Odds = V2 Rational
 
+swapXY :: V2 a -> V2 a
 swapXY (V2 x y) = V2 y x
 
 crossoverIntMap ::
-  RandomGen g =>
   Odds ->
   Odds ->
   Odds ->
   IntMap a ->
   IntMap a ->
-  Rand g (IntMap a)
+  RVar (IntMap a)
 crossoverIntMap fitterOdds fitterOnlyOdds lessFitOnlyOdds =
   slowMerge
     (fromOdds (swapXY fitterOnlyOdds) Nothing . Just)
@@ -157,13 +158,16 @@ crossoverIntMap fitterOdds fitterOnlyOdds lessFitOnlyOdds =
     (fromOdds (swapXY lessFitOnlyOdds) Nothing . Just)
 
 fromOdds ::
-  forall g t.
-  (RandomGen g) =>
   Odds ->
   t ->
   t ->
-  Rand g t
-fromOdds (V2 aOdds bOdds) a b = R.fromList [(a, aOdds), (b, bOdds)]
+  RVar t
+fromOdds (V2 aOdds bOdds) a b =
+  do
+    x <- uniform 0 (aOdds + bOdds)
+    if x < aOdds
+      then pure a
+      else pure b
 
 slowMerge ::
   forall l r t m.
@@ -176,7 +180,7 @@ slowMerge ::
   m (IntMap t)
 slowMerge leftOnly bothSides rightOnly leftMap rightMap =
   fmap (IM.mapMaybe id)
-    . R.mapM fromOrBoth
+    . mapM fromOrBoth
     $ toOrBoth leftMap rightMap
   where
     fromOrBoth :: OrBoth l r -> m (Maybe t)
@@ -211,7 +215,11 @@ splitIntoSpecies speciesRadius = fmap snd . L.foldr insertIntoSpecies []
         then (y, x : ys) : yss
         else (y, ys) : insertIntoSpecies x yss
 
-binFitness :: (Genotype -> m Double) -> [Genotype] -> m (Double, [(Double, Genotype)])
+binFitness ::
+  Monad m =>
+  (Genotype -> m Double) ->
+  [Genotype] ->
+  m (Double, [(Double, Genotype)])
 binFitness f bin =
   do
     withFitness <- bin
@@ -222,12 +230,15 @@ binFitness f bin =
     let meanFitness = L.sum (fst <$> withFitness) / fromIntegral (L.length bin)
     pure (meanFitness, withFitness)
 
+normalizeFitness :: [(Double, a)] -> [(Double, a)]
 normalizeFitness bins = fmap (first (/ total)) bins
   where
     total = L.sum $ fst <$> bins
 
-shrinkToFit :: (Int, [(Double, Genotype)]) -> [Genotype]
-shrinkToFit (size, parents) = snd <$> take size (sort parents)
+shrinkToFit :: (Int, [(Double, Genotype)]) -> (Int, [Genotype])
+shrinkToFit (newSize, parents) = (newSize, culled)
+  where
+    culled = snd <$> take newSize (sortOn fst parents)
 
 portionSexual :: Rational
 portionSexual = 0.75
@@ -235,11 +246,14 @@ portionSexual = 0.75
 interSpeciesMatingRate :: Rational
 interSpeciesMatingRate = 0.001
 
+interSpeciesMatingOdds :: Odds
+interSpeciesMatingOdds = rateToOdds interSpeciesMatingRate
+
 newNodeRate :: Rational
 newNodeRate = 0.03
 
-newConnectionRate :: Rational
-newConnectionRate = 0.05
+addConnectionRate :: Rational
+addConnectionRate = 0.05
 
 perturbGenotypeRate :: Rational
 perturbGenotypeRate = 0.8
@@ -250,64 +264,100 @@ newRandomWeightRate = 0.1
 deltaThreshould :: Double
 deltaThreshould = 3.0
 
-rateToOdds :: Rational -> V2 Rational
+rateToOdds :: Rational -> Odds
 rateToOdds r = V2 r (1 - r)
 
-mutate :: RandomGen g => Genotype -> Rand g Genotype
-mutate g =
+atRate :: Rational -> (x -> RVar x) -> x -> RVar x
+atRate rate action x =
   do
-    f <-
-      fromOdds
-        (rateToOdds perturbGenotypeRate)
-        perturbe
-        pure
-    connections (mapM f) g
-  where
-    perturbe :: Gene -> Rand g Gene
-    perturbe g =
-      do
-        f <- fromOdds (rateToOdds newRandomWeightRate) set addTo
-        flip (f weight) g <$> getRandomR (-1, 1)
-      where
-        addTo :: Num a => ASetter' s a -> a -> s -> s
-        addTo lens new = lens %~ (+ new)
+    f <- fromOdds (rateToOdds rate) action pure
+    f x
 
-mkBinKids :: RandomGen g => (Int, [Genotype]) -> Rand g [Genotype]
-mkBinKids (popsize :: Int, parents@(champion : _)) =
+mutate :: Int -> Genotype -> RVar Genotype
+mutate generation =
+  step1 >=> step2 >=> step3
+  where
+    step1, step2, step3 :: Genotype -> RVar Genotype
+    step1 = atRate perturbGenotypeRate (mutateWeights perturb)
+    step2 = atRate addConnectionRate addConnection'
+    step3 = atRate newNodeRate (splitConnection generation Hidden)
+    perturb :: Double -> RVar Double
+    perturb old =
+      do
+        adjustment <- normal 0 1
+        replacement <- uniform (-1) 1
+        fromOdds (rateToOdds newRandomWeightRate) replacement (adjustment + old)
+    addConnection' genotype =
+      do
+        w <- uniform (-1) 1
+        addConnection generation w genotype
+
+-- randomly slects pairs (a,b) such that a is earliar in the list than b.
+selectPairs :: [t] -> Int -> RVar [(t, t)]
+selectPairs l n =
+  do
+    ixs <- replicateM n rIndex
+    jxs <- replicateM n rIndex
+    zip ixs jxs
+      `forM` \(ix', jx') ->
+        do
+          let ix = min ix' jx'
+          let jx = 1 + max ix' jx'
+          pure (l !! ix, l !! jx)
+  where
+    rIndex :: RVar Int
+    rIndex = uniform 0 (length l - 2)
+
+mkBinKids ::
+  Int ->
+  [Genotype] ->
+  (Int, [Genotype]) ->
+  RVar [Genotype]
+mkBinKids _ _ (_, []) = error (toText "Empty bin")
+mkBinKids generation allGenomes (popsize :: Int, parents@(champion : _)) =
   do
     let numAsexual = floor $ fromIntegral popsize * (1 - portionSexual)
     asexualParents <- take numAsexual . cycle <$> shuffle parents
-    asexualKids <- mutate `mapM` asexualParents
+    asexualKids <- mutate generation `mapM` asexualParents
     -- minus 1 for the champion
     let numSexual = popsize - numAsexual - (1 :: Int)
-    let sexualParents = take numSexual . cycle $ parents
-    sexualKids <- ( (`splitAt` sexualParents)
-                      <$> [0 .. numSexual - 1]
-                    )
-      `forM` \case
-        ([], _) -> pure Nothing
-        (_, []) -> pure Nothing
-        (before, after) ->
-          do
-            moreFit <- choice before
-            lessFit <- choice after
-            Just <$> crossover moreFit lessFit
-    pure $ champion : asexualKids ++ catMaybes sexualKids
+    (sexualParents :: [(Genotype, Genotype)]) <-
+      (interSpeciesMating allGenomes `mapM`)
+        =<< selectPairs parents numSexual
+    sexualKids <- uncurry crossover `mapM` sexualParents
+    pure $ champion : asexualKids ++ sexualKids
+
+interSpeciesMating ::
+  [Genotype] ->
+  (Genotype, Genotype) ->
+  RVar (Genotype, Genotype)
+interSpeciesMating allGenomes (a, b) =
+  do
+    mkB <-
+      fromOdds
+        interSpeciesMatingOdds
+        (choice allGenomes)
+        (pure b)
+    b' <- mkB
+    pure (a, b')
 
 mkNewGeneration ::
-  forall g.
-  RandomGen g =>
+  (MonadIO m, MonadRandom m) =>
   (Genotype -> IO Double) ->
   Int ->
+  Int ->
   [Genotype] ->
-  RandT g IO [Genotype]
-mkNewGeneration toFitness totalPopSize oldGeneration =
+  m [Genotype]
+mkNewGeneration toFitness totalPopSize generationNumber oldGeneration =
   do
     let rawBins :: [[Genotype]] =
           splitIntoSpecies deltaThreshould oldGeneration
-    (binsWithFitness :: [(Double, [Genotype])]) <-
-      normalizeFitness <$> lift (binFitness toFitness <$> rawBins)
+    (binsWithFitness :: [(Double, [(Double, Genotype)])]) <-
+      normalizeFitness <$> liftIO (binFitness toFitness `mapM` rawBins)
     let scaledBins :: [(Int, [(Double, Genotype)])] =
-          first (floor . (* totalPopSize)) <$> binsWithFitness
+          first (floor . (* fromIntegral totalPopSize)) <$> binsWithFitness
     let resizedBins = shrinkToFit <$> scaledBins
-    L.concat <$> (mkBinKids <$> resizedBins)
+    L.concat
+      <$> ( (sampleRVar . mkBinKids generationNumber oldGeneration)
+              `mapM` resizedBins
+          )

@@ -27,7 +27,6 @@ library
   other-modules:       Neat.Interface
                        Neat.Types
                        Neat.Internals
-                       Extra.Random
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude
@@ -40,6 +39,9 @@ library
                      , lens
                      , linear
                      , random
+                     , random-extras
+                     , random-fu
+                     , rvar
                      , array
 
   ghc-options:         -Wall
@@ -62,6 +64,7 @@ executable Neat
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , neat
                      , relude
+                     , random
 
   ghc-options:         -Wall
                        -threaded
