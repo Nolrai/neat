@@ -1,11 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Neat.Interface
-  ( stub,
+  ( mkNewGeneration,
   )
 where
 
-import Neat.Internals
-
-stub :: a
-stub = error "stub"
+import Neat.Generation (mkNewGeneration)

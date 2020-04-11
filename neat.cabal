@@ -26,7 +26,8 @@ library
                        Prelude
   other-modules:       Neat.Interface
                        Neat.Types
-                       Neat.Internals
+                       Neat.Generation
+                       Neat.Utils
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude

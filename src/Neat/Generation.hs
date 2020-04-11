@@ -3,12 +3,13 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Neat.Internals
+module Neat.Generation
   ( addConnection,
     splitConnection,
-    mutateWeights,
     crossover,
     mkNewGeneration,
+    rvar,
+    toInnovationHash,
   )
 where
 
@@ -22,20 +23,9 @@ import Data.Random.Distribution.Normal (normal)
 import Data.Random.Distribution.Uniform (Uniform (..), uniform)
 import Data.Random.Extras
 import Data.Ratio
-import Linear.Metric as LM
 import Linear.V2
 import Neat.Types
-
-instance Distribution Uniform Rational where
-  rvar (Uniform low high) =
-    do
-      let diff = high - low
-      let bottom = denominator diff
-      top <- uniform 0 (numerator diff)
-      pure (low + top % bottom)
-
-mutateWeights :: Monad m => (Double -> m Double) -> Genotype -> m Genotype
-mutateWeights = Lens.mapMOf (connections . each . weight)
+import Neat.Utils
 
 -- the paper uses a counter + a list of this generations new connections,
 -- we a hash instead.
@@ -105,13 +95,6 @@ splitConnection generation nodeType parent =
     getRandomConnectionKey :: RVar Key
     getRandomConnectionKey = choice $ keys (parent ^. connections)
 
-data OrBoth l r = LeftOnly l | Both l r | RightOnly r
-
-orBoth :: (l -> t) -> (l -> r -> t) -> (r -> t) -> OrBoth l r -> t
-orBoth onLeft _ _ (LeftOnly l) = onLeft l
-orBoth _ onBoth _ (Both l r) = onBoth l r
-orBoth _ _ onRight (RightOnly r) = onRight r
-
 crossover ::
   Genotype ->
   Genotype ->
@@ -139,11 +122,6 @@ crossover' fitterOdds fitterOnlyOdds lessFitOnlyOdds fitter lessFit =
     mkNewConnections =
       crossoverIntMap fitterOdds fitterOnlyOdds lessFitOnlyOdds
 
-type Odds = V2 Rational
-
-swapXY :: V2 a -> V2 a
-swapXY (V2 x y) = V2 y x
-
 crossoverIntMap ::
   Odds ->
   Odds ->
@@ -156,18 +134,6 @@ crossoverIntMap fitterOdds fitterOnlyOdds lessFitOnlyOdds =
     (fromOdds (swapXY fitterOnlyOdds) Nothing . Just)
     (fromOdds fitterOdds)
     (fromOdds (swapXY lessFitOnlyOdds) Nothing . Just)
-
-fromOdds ::
-  Odds ->
-  t ->
-  t ->
-  RVar t
-fromOdds (V2 aOdds bOdds) a b =
-  do
-    x <- uniform 0 (aOdds + bOdds)
-    if x < aOdds
-      then pure a
-      else pure b
 
 slowMerge ::
   forall l r t m.
@@ -189,18 +155,6 @@ slowMerge leftOnly bothSides rightOnly leftMap rightMap =
     bothSides' l r = Just <$> bothSides l r
     toOrBoth :: IntMap a -> IntMap b -> IntMap (OrBoth a b)
     toOrBoth = mergeWithKey (\_ l r -> Just $ Both l r) (fmap LeftOnly) (fmap RightOnly)
-
--- a distance normalized over the number of genes.
-delta :: Genotype -> Genotype -> Double
-delta l r = rawDelta / fromIntegral numGenes
-  where
-    weights :: Genotype -> IntMap Double
-    weights g = (^. weight) <$> g ^. connections
-    rawDelta :: Double
-    rawDelta = (LM.distance `on` weights) l r
-    numGenes :: Int
-    --TODO try (+) instead of max
-    numGenes = (max `on` (IM.size . view connections)) l r
 
 splitIntoSpecies :: Double -> [Genotype] -> [[Genotype]]
 splitIntoSpecies speciesRadius = fmap snd . L.foldr insertIntoSpecies []
@@ -263,15 +217,6 @@ newRandomWeightRate = 0.1
 
 deltaThreshould :: Double
 deltaThreshould = 3.0
-
-rateToOdds :: Rational -> Odds
-rateToOdds r = V2 r (1 - r)
-
-atRate :: Rational -> (x -> RVar x) -> x -> RVar x
-atRate rate action x =
-  do
-    f <- fromOdds (rateToOdds rate) action pure
-    f x
 
 mutate :: Int -> Genotype -> RVar Genotype
 mutate generation =
