@@ -61,11 +61,20 @@ library
 executable Neat
   hs-source-dirs:      app
   main-is:             Main.hs
+  other-modules:       Opts
+                     , Eval
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , neat
                      , relude
+                     , grenade
+                     , optparse-applicative
+                     , containers
                      , random
+                     , random-extras
+                     , random-fu
+                     , rvar
+                     , hashable
 
   ghc-options:         -Wall
                        -threaded
