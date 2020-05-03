@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -10,19 +11,19 @@ module Neat.Generation
     mkNewGeneration,
     rvar,
     toInnovationHash,
+    delta,
   )
 where
 
-import Control.Lens as Lens
+import Control.Lens as Lens hiding (ix)
 import Data.Hashable
 import Data.IntMap.Strict as IM
 import Data.List as L
 import Data.RVar
 import Data.Random.Distribution
 import Data.Random.Distribution.Normal (normal)
-import Data.Random.Distribution.Uniform (Uniform (..), uniform)
+import Data.Random.Distribution.Uniform (uniform)
 import Data.Random.Extras
-import Data.Ratio
 import Linear.V2
 import Neat.Types
 import Neat.Utils
@@ -35,7 +36,7 @@ toInnovationHash generation gene =
 
 addConnection ::
   Int ->
-  Double ->
+  Int8 ->
   Genotype ->
   RVar Genotype
 addConnection generation newWeight parent =
@@ -218,6 +219,9 @@ newRandomWeightRate = 0.1
 deltaThreshould :: Double
 deltaThreshould = 3.0
 
+defaultWeight :: RVar Int8
+defaultWeight = uniform (toInt8Weight (-1)) (toInt8Weight 1)
+
 mutate :: Int -> Genotype -> RVar Genotype
 mutate generation =
   step1 >=> step2 >=> step3
@@ -226,15 +230,18 @@ mutate generation =
     step1 = atRate perturbGenotypeRate (mutateWeights perturb)
     step2 = atRate addConnectionRate addConnection'
     step3 = atRate newNodeRate (splitConnection generation Hidden)
-    perturb :: Double -> RVar Double
+    perturb :: Int8 -> RVar Int8
     perturb old =
       do
-        adjustment <- normal 0 1
-        replacement <- uniform (-1) 1
-        fromOdds (rateToOdds newRandomWeightRate) replacement (adjustment + old)
+        adjustment <- toInt8Weight <$> normal 0 1
+        replacement <- defaultWeight
+        fromOdds
+          (rateToOdds newRandomWeightRate)
+          replacement
+          (adjustment + old)
     addConnection' genotype =
       do
-        w <- uniform (-1) 1
+        w <- defaultWeight
         addConnection generation w genotype
 
 -- randomly slects pairs (a,b) such that a is earliar in the list than b.
@@ -258,7 +265,7 @@ mkBinKids ::
   [Genotype] ->
   (Int, [Genotype]) ->
   RVar [Genotype]
-mkBinKids _ _ (_, []) = error (toText "Empty bin")
+mkBinKids _ _ (_, []) = error "Empty bin"
 mkBinKids generation allGenomes (popsize :: Int, parents@(champion : _)) =
   do
     let numAsexual = floor $ fromIntegral popsize * (1 - portionSexual)
@@ -287,6 +294,7 @@ interSpeciesMating allGenomes (a, b) =
     pure (a, b')
 
 mkNewGeneration ::
+  forall m.
   (MonadIO m, MonadRandom m) =>
   (Genotype -> IO Double) ->
   Int ->
@@ -297,12 +305,25 @@ mkNewGeneration toFitness totalPopSize generationNumber oldGeneration =
   do
     let rawBins :: [[Genotype]] =
           splitIntoSpecies deltaThreshould oldGeneration
+    liftIO . putTextLn $ "num species = " <> show (length rawBins)
     (binsWithFitness :: [(Double, [(Double, Genotype)])]) <-
       normalizeFitness <$> liftIO (binFitness toFitness `mapM` rawBins)
+    liftIO . putTextLn $ "Fitness = " <> show (fst <$> binsWithFitness)
     let scaledBins :: [(Int, [(Double, Genotype)])] =
           first (floor . (* fromIntegral totalPopSize)) <$> binsWithFitness
+    liftIO . putTextLn $ "sizes = " <> show (fst <$> scaledBins)
     let resizedBins = shrinkToFit <$> scaledBins
     L.concat
-      <$> ( (sampleRVar . mkBinKids generationNumber oldGeneration)
+      <$> ( mkBinKids'
               `mapM` resizedBins
           )
+  where
+    mkBinKids' :: (Int, [Genotype]) -> m [Genotype]
+    mkBinKids' before =
+      do
+        after <-
+          sampleRVar $
+            mkBinKids generationNumber oldGeneration before
+        putTextLn $ "before: " <> show before
+        putTextLn $ "after: " <> show after
+        return after

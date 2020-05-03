@@ -24,7 +24,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Neat
                        Prelude
-  other-modules:       Neat.Interface
+                       Neat.Interface
                        Neat.Types
                        Neat.Generation
                        Neat.Utils
@@ -97,9 +97,22 @@ test-suite neat-test
   hs-source-dirs:      test
   main-is:             Spec.hs
 
+  other-modules:       Neat.GenerationSpec
+                       Neat.InterfaceSpec
+                       Neat.TypesSpec
+                       Neat.UtilsSpec
+
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , neat
                      , relude
+                     , hspec
+                     , QuickCheck
+                     , containers
+                     , rvar
+                     , random-fu
+                     , random-source
+                     , lens
+                     , vector
 
   ghc-options:         -Wall
                        -threaded
