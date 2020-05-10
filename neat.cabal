@@ -113,6 +113,7 @@ test-suite neat-test
                      , random-source
                      , lens
                      , vector
+                     , transformers
 
   ghc-options:         -Wall
                        -threaded

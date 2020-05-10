@@ -5,7 +5,6 @@ module Neat.Utils where
 
 import Data.RVar
 import Data.Random.Distribution
-import Data.Random.Distribution.Normal (normal)
 import Data.Random.Distribution.Uniform (Uniform (..), uniform)
 import Data.Ratio ((%))
 import Linear.V2

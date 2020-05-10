@@ -12,6 +12,7 @@ module Neat.Generation
     rvar,
     toInnovationHash,
     delta,
+    selectPairs,
   )
 where
 
@@ -43,7 +44,9 @@ addConnection generation newWeight parent =
   Genotype (parent ^. nodes) <$> newConnections
   where
     randomNode :: RVar Int
-    randomNode = choice $ IM.keys (parent ^. nodes)
+    randomNode =
+      fromMaybe (error "no nodes!") . safeChoice $
+        IM.keys (parent ^. nodes)
     newConnections :: RVar (IntMap Gene)
     newConnections =
       do
@@ -57,44 +60,64 @@ addConnection generation newWeight parent =
         pure Gene {_inNode = newInNode, _outNode = newOutNode, _enabled = True, _weight = newWeight}
 
 splitConnection ::
+  HasCallStack =>
   Int ->
-  NodeType ->
   Genotype ->
   RVar Genotype
-splitConnection generation nodeType parent =
-  do
-    key <- getRandomConnectionKey
-    let oldConnection = (parent ^. connections) IM.! key
-    let newNodeHash = toHash oldConnection
-    let frontHalf = oldConnection & inNode .~ newNodeHash
-    let backHalf =
-          Gene
-            { _outNode = newNodeHash,
-              _enabled = True,
-              _weight = 1,
-              _inNode = oldConnection ^. inNode
-            }
-    let newConnections =
-          IM.fromList
-            [ toHashPair backHalf,
-              toHashPair frontHalf,
-              toHashPair (oldConnection & enabled .~ False)
-            ]
-    let newNodes =
-          (parent ^. nodes)
-            `IM.union` IM.fromAscList
-              [(toHash oldConnection, nodeType)]
-    -- union is left biased, so oldConnection gets over writen.
-    pure
-      . Genotype newNodes
-      $ newConnections `IM.union` (parent ^. connections)
+splitConnection generation parent =
+  case maybeGetRandomConnectionKey of
+    Nothing -> pure parent
+    Just getRandomConnectionKey ->
+      do
+        key <- getRandomConnectionKey
+        let oldConnection' = IM.lookup key oldConnections
+        let errmsg =
+              ("Generation: " <> show generation)
+                <> ("key: " <> show key)
+                <> ("\nkeys: \n" <> show keys')
+                <> ("\nkey `L.elem` keys: " <> show (key `L.elem` keys'))
+                <> ("\noldConnections: \n" <> show oldConnections)
+                <> ("\noldConnection': " <> show oldConnection')
+                <> ("\noldConnection': " <> show (oldConnections IM.!? key))
+        let oldConnection = fromMaybe (error errmsg) oldConnection'
+        let newNodeHash = toHash oldConnection
+        let frontHalf = oldConnection & inNode .~ newNodeHash
+        let backHalf =
+              Gene
+                { _outNode = newNodeHash,
+                  _enabled = True,
+                  _weight = 1,
+                  _inNode = oldConnection ^. inNode
+                }
+        let newConnections =
+              IM.fromList
+                [ toHashPair backHalf,
+                  toHashPair frontHalf,
+                  (key, oldConnection & enabled .~ False)
+                ]
+        let newNodes =
+              (parent ^. nodes)
+                `IM.union` IM.fromAscList
+                  [(toHash oldConnection, Hidden)]
+        -- union is left biased, so oldConnection gets over writen.
+        pure
+          . Genotype newNodes
+          $ newConnections `IM.union` (parent ^. connections)
   where
+    -- let t = frontHalf `seq` trace (toString errmsg)
+    -- pure $
+    --   t `seq` parent
+
     toHashPair gene = (toHash gene, gene)
     -- these down here don't rely on the value of "key".
     toHash :: Gene -> Int
     toHash = toInnovationHash generation
-    getRandomConnectionKey :: RVar Key
-    getRandomConnectionKey = choice $ keys (parent ^. connections)
+    oldConnections :: IntMap Gene
+    oldConnections = fst . L.head . reads . show $ parent ^. connections
+    maybeGetRandomConnectionKey :: Maybe (RVar Key)
+    maybeGetRandomConnectionKey = safeChoice keys'
+    keys' :: [Key]
+    keys' = keys oldConnections
 
 crossover ::
   Genotype ->
@@ -229,7 +252,7 @@ mutate generation =
     step1, step2, step3 :: Genotype -> RVar Genotype
     step1 = atRate perturbGenotypeRate (mutateWeights perturb)
     step2 = atRate addConnectionRate addConnection'
-    step3 = atRate newNodeRate (splitConnection generation Hidden)
+    step3 = atRate newNodeRate (splitConnection generation)
     perturb :: Int8 -> RVar Int8
     perturb old =
       do
@@ -245,7 +268,7 @@ mutate generation =
         addConnection generation w genotype
 
 -- randomly slects pairs (a,b) such that a is earliar in the list than b.
-selectPairs :: [t] -> Int -> RVar [(t, t)]
+selectPairs :: (HasCallStack, Show t) => [t] -> Int -> RVar [(t, t)]
 selectPairs l n =
   do
     ixs <- replicateM n rIndex
@@ -255,10 +278,22 @@ selectPairs l n =
         do
           let ix = min ix' jx'
           let jx = 1 + max ix' jx'
-          pure (l !! ix, l !! jx)
+          if ix >= length l
+            then error $ errmsg ix jx
+            else
+              pure
+                ( l !! ix,
+                  if jx >= length l
+                    then l !! ix
+                    else l !! jx
+                )
   where
     rIndex :: RVar Int
-    rIndex = uniform 0 (length l - 2)
+    rIndex = uniform 0 (max 0 (length l - 2))
+    errmsg ix jx =
+      "ix: " <> show ix <> " jx: " <> show jx
+        <> "\nl: "
+        <> show l
 
 mkBinKids ::
   Int ->
@@ -288,7 +323,7 @@ interSpeciesMating allGenomes (a, b) =
     mkB <-
       fromOdds
         interSpeciesMatingOdds
-        (choice allGenomes)
+        (fromMaybe (error "empty allGenomes") $ safeChoice allGenomes)
         (pure b)
     b' <- mkB
     pure (a, b')

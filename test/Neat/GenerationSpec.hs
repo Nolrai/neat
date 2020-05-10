@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -13,7 +14,6 @@ where
 import Control.Lens
 import Data.IntMap as IM
 import Data.List as List
--- import Data.List as L
 import Data.RVar
 import Data.Random ()
 import Data.Random.Distribution.Uniform (uniform)
@@ -27,6 +27,8 @@ import Data.Random.Source (monadRandom)
 import qualified Data.Vector as V
 import Neat.Generation as G
   ( addConnection,
+    selectPairs,
+    splitConnection,
   )
 import Neat.Types as T
 import Test.Hspec
@@ -59,7 +61,7 @@ instance Arbitrary Genotype where
                       <$> [(numInput, Input), (numOutput, Output), (numHidden, Hidden)]
                 )
       let numConnections' = numOutput + numHidden
-      numConnections <- choose (0, 2 * numConnections')
+      numConnections <- choose (0, s * numConnections')
       let _connections = mempty
       sampleRVar $ addConnections numConnections Genotype {..}
   shrink g =
@@ -93,7 +95,7 @@ spec =
       do
         xit "stub for hlint" . property $ \b -> b && b `shouldBe` b
         it "non-stationary" . property $
-          \x n ->
+          \x (NonNegative n) ->
             monadicIO . run . sampleRVar $
               do
                 w <- uniform (-1) 1
@@ -120,3 +122,29 @@ spec =
           \x y z ->
             (delta x y, delta y z, delta x z)
               `shouldSatisfy` (\(xy, yz, xz) -> xy + yz >= xz)
+    describe "splitConnection"
+      $ it "doesn't throw" . property
+      $ \(x :: Genotype) ->
+        flip shouldReturn () $
+          do
+            (101, end) <-
+              sampleRVar . flip execStateT (1 :: Int, x)
+                $ replicateM_ 100
+                $ do
+                  (generation, !y) <- get
+                  y' <- lift $ splitConnection generation y
+                  put (generation + 1, y')
+            writeFile "test.out" (show end <> "\n")
+    describe "selectPairs"
+      $ it "doesn't throw" . property
+      $ \(Positive (m :: Int)) (Positive (n :: Int)) ->
+        do
+          pairs <- sampleRVar $ replicateM 100 $ selectPairs [0 .. m] n
+          pairs
+            `shouldSatisfy` all
+              ( \subList ->
+                  (length subList == n)
+                    && all
+                      (\(a, b) -> a < b && b <= m && a >= 0)
+                      subList
+              )

@@ -25,8 +25,7 @@ import Control.Lens as Lens
 import Data.IntMap.Strict as IM
 import Linear.Metric as LM
 
-data NodeType = Input | Output | Hidden
-  deriving stock (Show, Read, Enum, Eq, Ord, Generic)
+data NodeType = Input | Output | Hidden deriving stock (Show, Read, Enum, Eq, Ord, Generic)
 
 -- small int for starting nodes, hash for later ones
 data Gene
@@ -58,13 +57,19 @@ mutateWeights = Lens.mapMOf (connections . each . weight)
 delta :: Genotype -> Genotype -> Double
 delta l r =
   sqrt $
-    (rawDelta / max 1 numGenes) ^ 2
-      + (keyDiff / max 1 numGenes) ^ 2
-      + (nodeDiff / max 1 maxNodes) ^ 2
+    (rawDelta / max 1 numGenes) ^ (2 :: Int)
+      + (keyDiff / max 1 numGenes) ^ (2 :: Int)
+      + (nodeDiff / max 1 maxNodes) ^ (2 :: Int)
+      + (nodeDelta / max 1 maxNodes) ^ (2 :: Int)
   where
-    onNodes f = fromIntegral $ (f `on` (length . view nodes)) l r
-    nodeDiff = onNodes ((abs .) . (-))
-    maxNodes = onNodes max
+    onNodes f g = fromIntegral $ (f `on` (g . view nodes)) l r
+    nodeDiff = onNodes ((abs .) . (-)) length
+    maxNodes = onNodes max length
+    nodeTypeToNum Input = 1
+    nodeTypeToNum Output = 3
+    nodeTypeToNum Hidden = 2
+    nodeLables g = nodeTypeToNum <$> (g ^. nodes)
+    nodeDelta = (LM.distance `on` nodeLables) l r
     keyDiff :: Double
     keyDiff = fromIntegral $ sizeOnF union - sizeOnF intersection
     sizeOnF :: (forall a. IntMap a -> IntMap a -> IntMap a) -> Int

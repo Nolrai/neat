@@ -8,7 +8,6 @@ module Opts
   )
 where
 
-import Data.List as List
 import Eval (evalXor, starterXor)
 import Neat
 import Options.Applicative as O
@@ -85,4 +84,5 @@ fileParser =
         <> action "file"
     )
 
+starterParser :: Parser Genotype
 starterParser = pure starterXor
