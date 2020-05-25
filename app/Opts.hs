@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -9,6 +10,7 @@ module Opts
 where
 
 import Eval (evalXor, starterXor)
+import GHC.Show (show)
 import Neat
 import Options.Applicative as O
 
@@ -21,6 +23,10 @@ data Opts where
       opts_generations :: Int
     } ->
     Opts
+  deriving (Show)
+
+instance Show (Genotype -> IO Double) where
+  show _ = "***"
 
 execOptions :: IO Opts
 execOptions = execParser $ parseOptions `info` myInfo

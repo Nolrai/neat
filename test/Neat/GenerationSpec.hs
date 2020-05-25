@@ -25,12 +25,16 @@ import Data.Random.Source (monadRandom)
 -- toInnovationHash,
 
 import qualified Data.Vector as V
+import Linear.Metric as LM
+import Linear.V3
 import Neat.Generation as G
   ( addConnection,
     selectPairs,
     splitConnection,
+    splitIntoBins,
   )
 import Neat.Types as T
+import Neat.Utils (Id (..))
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Monadic as Q
@@ -53,7 +57,7 @@ instance Arbitrary Genotype where
       numOutput <- choose (1, s)
       numHidden <- choose (0, s * s)
       let _nodes =
-            IM.fromAscList $
+            IM.fromList $
               zip
                 [0 ..]
                 ( concat $
@@ -73,7 +77,7 @@ instance Arbitrary Genotype where
         entryVector2 <- onEntry `V.imapM` entryVector1
         pure $ set connections (IM.fromList $ V.toList entryVector2) g
 
-addConnections :: Int -> Genotype -> RVar Genotype
+addConnections :: HasCallStack => Int -> Genotype -> RVar Genotype
 addConnections numConnections start =
   foldlM f start [0 .. numConnections - 1]
   where
@@ -123,7 +127,7 @@ spec =
             (delta x y, delta y z, delta x z)
               `shouldSatisfy` (\(xy, yz, xz) -> xy + yz >= xz)
     describe "splitConnection"
-      $ it "doesn't throw" . property
+      $ xit "doesn't throw" . property
       $ \(x :: Genotype) ->
         flip shouldReturn () $
           do
@@ -148,3 +152,33 @@ spec =
                       (\(a, b) -> a < b && b <= m && a >= 0)
                       subList
               )
+    describe "splitIntoBins" $
+      do
+        it "maintains individual items" $ property maintainsIndividualItems
+        it "makes coherent bins" $ property makesCoherenBins
+        let l = [Id 0, Id 1, Id 5]
+        it "0 1 and 5, r = 2" $
+          splitIntoBins LM.distance 2 l `shouldMatchList` [[Id 0, Id 1], [Id 5]]
+        it "0 1 and 5, r = 0.5" $
+          splitIntoBins LM.distance 0.5 l `shouldMatchList` [[Id 0], [Id 1], [Id 5]]
+        it "0 1 and 5, r = 10" $
+          splitIntoBins LM.distance 10 l `shouldMatchList` [[Id 0, Id 1, Id 5]]
+
+instance Arbitrary a => Arbitrary (V3 a) where
+  arbitrary = V3 <$> arbitrary <*> arbitrary <*> arbitrary
+
+makesCoherenBins x y r = splitIntoBins d r l `shouldSatisfy` all isCoherentBin
+  where
+    isCoherentBin [] = True
+    isCoherentBin (x : xs) = all (\y -> d x y < 2 * r) xs
+    d :: V3 Double -> V3 Double -> Double
+    d a b = LM.distance a b / 3
+    l = x : y
+
+maintainsIndividualItems x y = property $ \r -> concat (f r l) `shouldMatchList` l
+  where
+    l :: [V3 Double]
+    l = x : y
+    d :: V3 Double -> V3 Double -> Double
+    d a b = LM.distance a b / 3
+    f = splitIntoBins d

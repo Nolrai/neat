@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
@@ -56,3 +57,11 @@ atRate rate action x =
   do
     f <- fromOdds (rateToOdds rate) action pure
     f x
+
+isAsc :: Ord a => [a] -> Bool
+isAsc (x : xs@(y : _)) = x < y && isAsc xs
+isAsc [_] = True
+isAsc [] = True
+
+newtype Id a = Id a
+  deriving (Show, Read, Functor)

@@ -7,6 +7,7 @@
 module Neat.Generation
   ( addConnection,
     splitConnection,
+    splitIntoBins,
     crossover,
     mkNewGeneration,
     rvar,
@@ -16,6 +17,7 @@ module Neat.Generation
   )
 where
 
+import Control.Exception (IOException, assert, try)
 import Control.Lens as Lens hiding (ix)
 import Data.Hashable
 import Data.IntMap.Strict as IM
@@ -98,7 +100,9 @@ splitConnection generation parent =
         let newNodes =
               (parent ^. nodes)
                 `IM.union` IM.fromAscList
-                  [(toHash oldConnection, Hidden)]
+                  ( (\l -> assert (isAsc l) l)
+                      [(toHash oldConnection, Hidden)]
+                  )
         -- union is left biased, so oldConnection gets over writen.
         pure
           . Genotype newNodes
@@ -181,29 +185,32 @@ slowMerge leftOnly bothSides rightOnly leftMap rightMap =
     toOrBoth = mergeWithKey (\_ l r -> Just $ Both l r) (fmap LeftOnly) (fmap RightOnly)
 
 splitIntoSpecies :: Double -> [Genotype] -> [[Genotype]]
-splitIntoSpecies speciesRadius = fmap snd . L.foldr insertIntoSpecies []
+splitIntoSpecies = splitIntoBins delta
+
+splitIntoBins :: forall a. (a -> a -> Double) -> Double -> [a] -> [[a]]
+splitIntoBins delta' radius' = fmap snd . L.foldr insertIntoBins []
   where
-    insertIntoSpecies ::
-      Genotype ->
-      [(Genotype, [Genotype])] ->
-      [(Genotype, [Genotype])]
-    insertIntoSpecies x [] = [(x, [x])]
-    insertIntoSpecies x ((y, ys) : yss) =
-      if delta x y < speciesRadius
+    insertIntoBins ::
+      a ->
+      [(a, [a])] ->
+      [(a, [a])]
+    insertIntoBins x [] = [(x, [x])]
+    insertIntoBins x ((y, ys) : yss) =
+      if delta' x y < radius'
         then (y, x : ys) : yss
-        else (y, ys) : insertIntoSpecies x yss
+        else (y, ys) : insertIntoBins x yss
 
 binFitness ::
-  Monad m =>
-  (Genotype -> m Double) ->
+  HasCallStack =>
+  (Genotype -> IO Double) ->
   [Genotype] ->
-  m (Double, [(Double, Genotype)])
+  IO (Double, [(Double, Genotype)])
 binFitness f bin =
   do
     withFitness <- bin
       `forM` \genotype ->
         do
-          fitness <- f genotype
+          Right fitness <- try (f genotype) :: IO (Either IOException Double)
           pure (fitness, genotype)
     let meanFitness = L.sum (fst <$> withFitness) / fromIntegral (L.length bin)
     pure (meanFitness, withFitness)
@@ -240,7 +247,7 @@ newRandomWeightRate :: Rational
 newRandomWeightRate = 0.1
 
 deltaThreshould :: Double
-deltaThreshould = 3.0
+deltaThreshould = 1
 
 defaultWeight :: RVar Int8
 defaultWeight = uniform (toInt8Weight (-1)) (toInt8Weight 1)
@@ -341,6 +348,7 @@ mkNewGeneration toFitness totalPopSize generationNumber oldGeneration =
     let rawBins :: [[Genotype]] =
           splitIntoSpecies deltaThreshould oldGeneration
     liftIO . putTextLn $ "num species = " <> show (length rawBins)
+    liftIO . putTextLn $ "raw sizes = " <> show (L.map length rawBins)
     (binsWithFitness :: [(Double, [(Double, Genotype)])]) <-
       normalizeFitness <$> liftIO (binFitness toFitness `mapM` rawBins)
     liftIO . putTextLn $ "Fitness = " <> show (fst <$> binsWithFitness)
@@ -355,10 +363,5 @@ mkNewGeneration toFitness totalPopSize generationNumber oldGeneration =
   where
     mkBinKids' :: (Int, [Genotype]) -> m [Genotype]
     mkBinKids' before =
-      do
-        after <-
-          sampleRVar $
-            mkBinKids generationNumber oldGeneration before
-        putTextLn $ "before: " <> show before
-        putTextLn $ "after: " <> show after
-        return after
+      sampleRVar $
+        mkBinKids generationNumber oldGeneration before

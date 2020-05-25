@@ -28,6 +28,7 @@ library
                        Neat.Types
                        Neat.Generation
                        Neat.Utils
+                       Neat.Run
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude
@@ -44,6 +45,7 @@ library
                      , random-fu
                      , rvar
                      , array
+                     , hmatrix
 
   ghc-options:         -Wall
                        -Wincomplete-uni-patterns
@@ -63,6 +65,7 @@ executable Neat
   main-is:             Main.hs
   other-modules:       Opts
                      , Eval
+                     , Utils
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , neat
@@ -75,6 +78,9 @@ executable Neat
                      , random-fu
                      , rvar
                      , hashable
+                     , matrix
+                     , vector
+                     , hmatrix
 
   ghc-options:         -Wall
                        -threaded
@@ -114,6 +120,7 @@ test-suite neat-test
                      , lens
                      , vector
                      , transformers
+                     , linear
 
   ghc-options:         -Wall
                        -threaded
