@@ -1,4 +1,2 @@
-module Main (main) where
-
-main :: IO ()
-main = putStrLn ("Test suite not yet implemented" :: String)
+{-# OPTIONS_GHC -F -pgmF hspec-discover #-}
+{-# OPTIONS_GHC -fno-warn-missing-export-lists #-}

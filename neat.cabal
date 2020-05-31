@@ -24,10 +24,25 @@ library
   hs-source-dirs:      src
   exposed-modules:     Neat
                        Prelude
+                       Neat.Interface
+                       Neat.Types
+                       Neat.Generation
+                       Neat.Utils
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude
                      , moo
+                     , vector
+                     , hashable
+                     , MonadRandom
+                     , containers
+                     , lens
+                     , linear
+                     , random
+                     , random-extras
+                     , random-fu
+                     , rvar
+                     , array
 
   ghc-options:         -Wall
                        -Wincomplete-uni-patterns
@@ -42,13 +57,22 @@ library
 
   default-language:    Haskell2010
 
-executable neat
+executable Neat
   hs-source-dirs:      app
   main-is:             Main.hs
+  other-modules:       Opts
+                     , Eval
 
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , neat
                      , relude
+                     , optparse-applicative
+                     , containers
+                     , random
+                     , random-extras
+                     , random-fu
+                     , rvar
+                     , hashable
 
   ghc-options:         -Wall
                        -threaded
@@ -71,9 +95,23 @@ test-suite neat-test
   hs-source-dirs:      test
   main-is:             Spec.hs
 
+  other-modules:       Neat.GenerationSpec
+                       Neat.InterfaceSpec
+                       Neat.TypesSpec
+                       Neat.UtilsSpec
+
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , neat
                      , relude
+                     , hspec
+                     , QuickCheck
+                     , containers
+                     , rvar
+                     , random-fu
+                     , random-source
+                     , lens
+                     , vector
+                     , transformers
 
   ghc-options:         -Wall
                        -threaded

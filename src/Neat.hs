@@ -1,6 +1,4 @@
-module Neat
-       ( someFunc
-       ) where
+module Neat (module Neat.Interface, module Neat.Types) where
 
-someFunc :: IO ()
-someFunc = putStrLn ("someFunc" :: String)
+import Neat.Interface (mkNewGeneration)
+import Neat.Types
