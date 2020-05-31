@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Neat.Generation
   ( addConnection,
@@ -17,7 +18,7 @@ module Neat.Generation
   )
 where
 
-import Control.Exception (IOException, assert, try)
+import Control.Exception (IOException, assert, catch)
 import Control.Lens as Lens hiding (ix)
 import Data.Hashable
 import Data.IntMap.Strict as IM
@@ -207,15 +208,22 @@ binFitness ::
   IO (Double, [(Double, Genotype)])
 binFitness f bin =
   do
-    withFitness <- bin
-      `forM` \genotype ->
-        do
-          Right fitness <- try (f genotype) :: IO (Either IOException Double)
-          pure (fitness, genotype)
-    let meanFitness = L.sum (fst <$> withFitness) / fromIntegral (L.length bin)
-    pure (meanFitness, withFitness)
+    withFitness <- annotate getFitness `mapM` bin
+    annotate (pure . meanFitness) withFitness
+  where
+    getFitness :: Genotype -> IO Double
+    getFitness genotype = (f genotype >>= evaluateNF) `catch` (\e -> reportError e >> pure (- (10 ^ 8)))
 
-normalizeFitness :: [(Double, a)] -> [(Double, a)]
+annotate :: (a -> IO b) -> a -> IO (b, a)
+annotate f x = (,x) <$> f x
+
+meanFitness :: [(Double, Genotype)] -> Double
+meanFitness individualFitnesses = L.sum (fst <$> individualFitnesses) / fromIntegral (L.length individualFitnesses)
+
+reportError :: SomeException -> IO ()
+reportError ex = print ex >> (putTextLn . toText) (prettyCallStack callStack)
+
+normalizeFitness :: forall a. (HasCallStack, Show a) => [(Double, a)] -> [(Double, a)]
 normalizeFitness bins = fmap (first (/ total)) bins
   where
     total = L.sum $ fst <$> bins
@@ -307,7 +315,8 @@ mkBinKids ::
   [Genotype] ->
   (Int, [Genotype]) ->
   RVar [Genotype]
-mkBinKids _ _ (_, []) = error "Empty bin"
+mkBinKids _ _ (0, _) = pure []
+mkBinKids _ _ (n, []) = error $ "Empty bin when popsize = " <> show n
 mkBinKids generation allGenomes (popsize :: Int, parents@(champion : _)) =
   do
     let numAsexual = floor $ fromIntegral popsize * (1 - portionSexual)
@@ -337,7 +346,7 @@ interSpeciesMating allGenomes (a, b) =
 
 mkNewGeneration ::
   forall m.
-  (MonadIO m, MonadRandom m) =>
+  (HasCallStack, MonadIO m, MonadRandom m, MonadFail m) =>
   (Genotype -> IO Double) ->
   Int ->
   Int ->
@@ -345,18 +354,17 @@ mkNewGeneration ::
   m [Genotype]
 mkNewGeneration toFitness totalPopSize generationNumber oldGeneration =
   do
-    let rawBins :: [[Genotype]] =
-          splitIntoSpecies deltaThreshould oldGeneration
+    rawBins <- evaluateNF $ splitIntoSpecies deltaThreshould oldGeneration
     liftIO . putTextLn $ "num species = " <> show (length rawBins)
     liftIO . putTextLn $ "raw sizes = " <> show (L.map length rawBins)
-    (binsWithFitness :: [(Double, [(Double, Genotype)])]) <-
-      normalizeFitness <$> liftIO (binFitness toFitness `mapM` rawBins)
+    binsWithFitness <-
+      evaluateNF =<< normalizeFitness <$> liftIO (binFitness toFitness `mapM` rawBins)
     liftIO . putTextLn $ "Fitness = " <> show (fst <$> binsWithFitness)
-    let scaledBins :: [(Int, [(Double, Genotype)])] =
-          first (floor . (* fromIntegral totalPopSize)) <$> binsWithFitness
-    liftIO . putTextLn $ "sizes = " <> show (fst <$> scaledBins)
-    let resizedBins = shrinkToFit <$> scaledBins
-    L.concat
+    scaledBins <- evaluateNF $ first (max 0 . floor . (* fromIntegral totalPopSize)) <$> binsWithFitness
+    liftIO . putTextLn $ "sizes = " <> show (fst <$> scaledBins, length . snd <$> scaledBins)
+    resizedBins <- evaluateNF $ shrinkToFit <$> scaledBins
+    evaluateNF
+      =<< L.concat
       <$> ( mkBinKids'
               `mapM` resizedBins
           )

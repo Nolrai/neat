@@ -1,22 +1,19 @@
-{-# LANGUAGE RecordWildCards #-}
+module Eval where
 
-module Eval
-  ( evalXor,
-    starterXor,
-  )
-where
+-- ( evalXor,
+--   starterXor,
+-- )
 
 -- import Grenade
 
 import Control.Exception (assert)
-import Data.Hashable
+import Data.Hashable ()
 import Data.Hashable.Generic
 import Data.IntMap as IM
 import qualified Data.List as L
 import Data.Random
-import Data.Random.Distribution
-import Data.Random.List (randomElement)
-import Data.Random.Sample
+import Data.Random.Distribution ()
+import Data.Random.Sample ()
 import Data.Vector as BV -- Boxed Vectors
 import Data.Vector.Storable as SV
 import Neat
@@ -26,21 +23,26 @@ import Utils
 dataWidth :: Integral i => i
 dataWidth = 8
 
--- This seems too complicated!
 evalXor :: Genotype -> IO Double
-evalXor g = evalXorBody (toGMatrix g) <$> getRandomInput <*> getRandomInput
-  where
-    -- get a byte of random bits in a form the Neuro Network understands
-    getRandomInput :: (MonadIO m, MonadRandom m) => m Vect
-    getRandomInput = sample $ SV.replicateM dataWidth (randomElement [-1, 1])
+evalXor g =
+  do
+    a <- getRandomInput
+    b <- getRandomInput
+    evaluateNF (a, b)
+    pure $ evalXorBody (toGMatrix g) a b
 
+-- get a byte of random bits in a form the Neuro Network understands
+getRandomInput :: (MonadIO m, MonadRandom m) => m Vect
+getRandomInput = sample $ SV.replicateM dataWidth (randomElement [-1, 1])
+
+-- This seems too complicated!
 evalXorBody :: HasCallStack => GMatrix -> Vect -> Vect -> Double
 evalXorBody gmatrix inputA inputB =
   BV.sum . BV.zipWith (*) fallOff $ scoreVector
   where
-    -- we do this because vectors can't be infinite, and so we score later rounds less.
+    -- We score later rounds less, and vectors need to have a finite length.
     fallOff :: BV.Vector Double
-    fallOff = ((1 / 2) ^) <$> BV.enumFromN 1 (BV.length scoreVector)
+    fallOff = (0.5 ^) <$> BV.enumFromN (1 :: Int) (BV.length scoreVector)
     scoreVector :: BV.Vector Double
     scoreVector = makePositive . (expected `dot`) <$> railedOutput
     -- scale from [-1,1] to [0,1], this needs to happen _after_ the dot product with expected, not before.

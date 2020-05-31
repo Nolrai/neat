@@ -27,6 +27,8 @@ import Linear.Metric as LM
 
 data NodeType = Input | Output | Hidden deriving stock (Show, Read, Enum, Eq, Ord, Generic)
 
+instance NFData NodeType
+
 -- small int for starting nodes, hash for later ones
 data Gene
   = Gene
@@ -37,12 +39,16 @@ data Gene
       }
   deriving stock (Show, Read, Eq, Ord, Generic)
 
+instance NFData Gene
+
 data Genotype
   = Genotype
       { _nodes :: IntMap NodeType,
         _connections :: IntMap Gene
       }
-  deriving stock (Show, Read, Eq, Ord)
+  deriving stock (Show, Read, Eq, Ord, Generic)
+
+instance NFData Genotype
 
 makeLenses ''Genotype
 
