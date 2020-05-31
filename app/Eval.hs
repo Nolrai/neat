@@ -6,8 +6,6 @@ module Eval
   )
 where
 
--- import Grenade
-
 import Data.Hashable
 import Data.Hashable.Generic
 import Data.IntMap as IM

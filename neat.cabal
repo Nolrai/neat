@@ -32,7 +32,6 @@ library
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , relude
                      , moo
-                     , grenade
                      , vector
                      , hashable
                      , MonadRandom
@@ -67,7 +66,6 @@ executable Neat
   build-depends:       base-noprelude ^>= 4.13.0.0
                      , neat
                      , relude
-                     , grenade
                      , optparse-applicative
                      , containers
                      , random

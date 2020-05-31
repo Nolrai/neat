@@ -7,5 +7,3 @@ extra-deps:
   - random-extras-0.19
   - random-fu-0.2.7.4
   - random-source-0.3.0.8
-  - github: nolrai/grenade
-    commit: 75f58045719bfa7f8cdb2a6dd85e8a1891d743a5
